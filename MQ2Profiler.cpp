@@ -16,24 +16,23 @@ PreSetup("MQ2Profiler");
 
 DETOUR_TRAMPOLINE_EMPTY(VOID __cdecl Call_T(PSPAWNINFO pChar, PCHAR szLine));
 DETOUR_TRAMPOLINE_EMPTY(VOID __cdecl Return_T(PSPAWNINFO pChar, PCHAR szLine));
-DETOUR_TRAMPOLINE_EMPTY(VOID __cdecl Macro_T(PSPAWNINFO pChar, PCHAR szLine));
 DETOUR_TRAMPOLINE_EMPTY(VOID __cdecl EndMacro_T(PSPAWNINFO pChar, PCHAR szLine));
 DETOUR_TRAMPOLINE_EMPTY(VOID __cdecl DoEvents_T(PSPAWNINFO pChar, PCHAR szLine));
 DETOUR_TRAMPOLINE_EMPTY(BOOL __cdecl DoNextCommand_T(PMACROBLOCK pMacroBlock));
 
 VOID __cdecl Call_D(PSPAWNINFO pChar, PCHAR szLine);
 VOID __cdecl Return_D(PSPAWNINFO pChar, PCHAR szLine);
-VOID __cdecl Macro_D(PSPAWNINFO pChar, PCHAR szLine);
 VOID __cdecl EndMacro_D(PSPAWNINFO pChar, PCHAR szLine);
 VOID __cdecl DoEvents_D(PSPAWNINFO pChar, PCHAR szLine);
 BOOL __cdecl DoNextCommand_D(PMACROBLOCK pMacroBlock);
 
 DWORD callAddr;
 DWORD returnAddr;
-DWORD macroAddr;
 DWORD endMacroAddr;
 DWORD doEventsAddr;
 DWORD doNextCommandAddr;
+
+VOID __cdecl ProfileCommand(PSPAWNINFO pChar, PCHAR szLine);
 
 unsigned __int64 commandCount = 0;
 
@@ -210,27 +209,28 @@ PLUGIN_API VOID InitializePlugin()
 	HMODULE hMQ2Main = GetModuleHandleA("MQ2Main.dll");
 	callAddr = FixJump((DWORD)GetProcAddress(hMQ2Main, "Call"));
 	returnAddr = FixJump((DWORD)GetProcAddress(hMQ2Main, "Return"));
-	macroAddr = FixJump((DWORD)GetProcAddress(hMQ2Main, "Macro"));
 	endMacroAddr = FixJump((DWORD)GetProcAddress(hMQ2Main, "EndMacro"));
 	doEventsAddr = FixJump((DWORD)GetProcAddress(hMQ2Main, "DoEvents"));
 	doNextCommandAddr = (DWORD)hMQ2Main + MQ2Main__DoNextCommand - MQ2Main__ImageBase;
 
 	EzDetour(callAddr, Call_D, Call_T);
 	EzDetour(returnAddr, Return_D, Return_T);
-	EzDetour(macroAddr, Macro_D, Macro_T);
 	EzDetour(endMacroAddr, EndMacro_D, EndMacro_T);
 	EzDetour(doEventsAddr, DoEvents_D, DoEvents_T);
 	EzDetour(doNextCommandAddr, DoNextCommand_D, DoNextCommand_T);
+
+	AddCommand("/profile", ProfileCommand);
 }
 
 PLUGIN_API VOID ShutdownPlugin()
 {
 	RemoveDetour(callAddr);
 	RemoveDetour(returnAddr);
-	RemoveDetour(macroAddr);
 	RemoveDetour(endMacroAddr);
 	RemoveDetour(doEventsAddr);
 	RemoveDetour(doNextCommandAddr);
+
+	RemoveCommand("/profile");
 }
 
 void ArgsToVector(PCHAR szLine, std::vector<std::string> & vec)
@@ -285,9 +285,9 @@ VOID __cdecl Return_D(PSPAWNINFO pChar, PCHAR szLine)
 	g_pProfile->Return(szLine);
 }
 
-VOID __cdecl Macro_D(PSPAWNINFO pChar, PCHAR szLine)
+VOID __cdecl ProfileCommand(PSPAWNINFO pChar, PCHAR szLine)
 {
-	Macro_T(pChar, szLine);
+	Macro(pChar, szLine);
 
 	if (g_pProfile)
 	{
@@ -300,7 +300,7 @@ VOID __cdecl Macro_D(PSPAWNINFO pChar, PCHAR szLine)
 
 	std::vector<std::string> args;
 	ArgsToVector(szLine, args);
-	args.erase(args.begin()); // meh
+	args.erase(args.begin()); // first arg is macro name, remove it
 
 	auto time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	char dateTime[32] = { 0 };
@@ -362,7 +362,7 @@ VOID __cdecl DoEvents_D(PSPAWNINFO pChar, PCHAR szLine)
 		{
 			std::smatch matches;
 
-			if (!std::regex_search(line->second.Command, matches, std::regex("Sub ([^\\(]+)\\(")))
+			if (!std::regex_search(line->second.Command, matches, std::regex("Sub ([^\\(]+)")))
 			{
 				LogError("Couldn't match bind sub");
 				return;
