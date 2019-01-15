@@ -2,6 +2,7 @@
 #include "date.h"
 
 #include "../MQ2Plugin.h"
+
 #include <fstream>
 #include <ostream>
 #include <regex>
@@ -67,7 +68,7 @@ public:
 
 	float getMillisecondsInc() const
 	{
-		return GetMicroseconds(m_startPerfCount, m_endPerfCount) / 1000.0;
+		return GetMicroseconds(m_startPerfCount, m_endPerfCount) / 1000.0f;
 	}
 
 	float getMillisecondsEx() const
@@ -304,6 +305,10 @@ VOID __cdecl ProfileCommand(PSPAWNINFO pChar, PCHAR szLine)
 
 	auto time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	char dateTime[32] = { 0 };
+	//tm today = {0};
+	//time_t tm;
+	//tm = time(NULL);
+	//localtime_s(&today,&tm);
 	std::strftime(dateTime, 32, "%Y%m%d_%H%M%S", std::localtime(&time));
 
 	commandCount = 0;
@@ -423,7 +428,7 @@ std::string ArgsToCSV(const std::vector<std::string> & args)
 	// no string replace in STL ???
 	ret = "\"" + std::regex_replace(args[0], std::regex("\""), "\"\"") + "\"";
 
-	for (auto i = 1; i < args.size(); i++)
+	for (int i = 1; i < (int)args.size(); i++)
 		ret += ",\"" + std::regex_replace(args[i], std::regex("\""), "\"\"") + "\"";
 
 	return ret;
