@@ -11,8 +11,6 @@
 #include <filesystem>
 #include <Psapi.h>
 
-//#include "FindPattern.h"
-
 PreSetup("MQ2Profiler");
 
 // 55 8B EC 81 EC ? ? 00 00 53 C7 45 ? 00 00 00 00
@@ -209,23 +207,6 @@ DWORD FixJump(DWORD stubAddr)
 	return stubAddr;
 }
 
-__declspec(noinline) bool MyDataCompare(const unsigned char *pData, const unsigned char *bMask, const char *szMask)
-{
-	for (; *szMask; ++szMask, ++pData, ++bMask)
-		if (*szMask == 'x' && *pData != *bMask)
-			return false;
-	return (*szMask) == 0;
-}
-
-__declspec(noinline) unsigned long MyFindPattern(unsigned long dwAddress, unsigned long dwLen, const unsigned char *bPattern, const char *szMask)
-{
-	for (unsigned long i = 0; i < dwLen; i++)
-		if (MyDataCompare((unsigned char *)(dwAddress + i), bPattern, szMask))
-			return (unsigned long)(dwAddress + i);
-
-	return 0;
-}
-
 PLUGIN_API VOID InitializePlugin()
 {
 	HMODULE hMQ2Main = GetModuleHandleA("MQ2Main.dll");
@@ -237,7 +218,7 @@ PLUGIN_API VOID InitializePlugin()
 	MODULEINFO MQ2ModuleInfo = { 0 };
 	GetModuleInformation(GetCurrentProcess(), hMQ2Main, &MQ2ModuleInfo, sizeof(MODULEINFO));
 
-	doNextCommandAddr = MyFindPattern((uintptr_t)MQ2ModuleInfo.lpBaseOfDll, MQ2ModuleInfo.SizeOfImage, DoNextCommandPattern, DoNextCommandPatternMask);
+	doNextCommandAddr = FindPattern((uintptr_t)MQ2ModuleInfo.lpBaseOfDll, MQ2ModuleInfo.SizeOfImage, DoNextCommandPattern, DoNextCommandPatternMask);
 
 	EzDetour(callAddr, Call_D, Call_T);
 	EzDetour(returnAddr, Return_D, Return_T);
