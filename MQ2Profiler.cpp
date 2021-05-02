@@ -1,8 +1,6 @@
-// Needs to be first otherwise compile errors, c++ is so annoying
-#include "date.h"
+#include <mq/Plugin.h>
 
-#include "../MQ2Plugin.h"
-
+#include <date/date.h>
 #include <fstream>
 #include <ostream>
 #include <regex>
@@ -12,6 +10,7 @@
 #include <Psapi.h>
 
 PreSetup("MQ2Profiler");
+PLUGIN_VERSION(1.0);
 
 // 55 8B EC 81 EC ? ? 00 00 53 C7 45 ? 00 00 00 00
 const unsigned char * DoNextCommandPattern = (const unsigned char *)"\x55\x8B\xEC\x81\xEC\x00\x00\x00\x00\x53\xC7\x45\x00\x00\x00\x00\x00";
@@ -21,13 +20,13 @@ DETOUR_TRAMPOLINE_EMPTY(VOID __cdecl Call_T(PSPAWNINFO pChar, PCHAR szLine));
 DETOUR_TRAMPOLINE_EMPTY(VOID __cdecl Return_T(PSPAWNINFO pChar, PCHAR szLine));
 DETOUR_TRAMPOLINE_EMPTY(VOID __cdecl EndMacro_T(PSPAWNINFO pChar, PCHAR szLine));
 DETOUR_TRAMPOLINE_EMPTY(VOID __cdecl DoEvents_T(PSPAWNINFO pChar, PCHAR szLine));
-DETOUR_TRAMPOLINE_EMPTY(BOOL __cdecl DoNextCommand_T(PMACROBLOCK pMacroBlock) noexcept);
+DETOUR_TRAMPOLINE_EMPTY(BOOL __cdecl DoNextCommand_T(MQMacroBlockPtr pMacroBlock) noexcept);
 
 VOID __cdecl Call_D(PSPAWNINFO pChar, PCHAR szLine);
 VOID __cdecl Return_D(PSPAWNINFO pChar, PCHAR szLine);
 VOID __cdecl EndMacro_D(PSPAWNINFO pChar, PCHAR szLine);
 VOID __cdecl DoEvents_D(PSPAWNINFO pChar, PCHAR szLine);
-BOOL __cdecl DoNextCommand_D(PMACROBLOCK pMacroBlock);
+BOOL __cdecl DoNextCommand_D(MQMacroBlockPtr pMacroBlock);
 
 DWORD callAddr;
 DWORD returnAddr;
@@ -187,7 +186,7 @@ public:
 
 		if (profile.m_callStack.size() == 1)
 			os << profile.m_callStack.top().ToCsv(1, profile.m_startPerfCount);
-		
+
 		return os;
 	}
 
@@ -274,7 +273,7 @@ VOID __cdecl Call_D(PSPAWNINFO pChar, PCHAR szLine)
 	ArgsToVector(szLine, args);
 	auto subroutine = args.front();
 	args.erase(args.begin()); // meh
-	
+
 	g_pProfile->Call(subroutine, args);
 }
 
@@ -312,12 +311,10 @@ VOID __cdecl ProfileCommand(PSPAWNINFO pChar, PCHAR szLine)
 	args.erase(args.begin()); // first arg is macro name, remove it
 
 	auto time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	std::tm now = {};
+	localtime_s(&now, &time);
 	char dateTime[32] = { 0 };
-	//tm today = {0};
-	//time_t tm;
-	//tm = time(NULL);
-	//localtime_s(&today,&tm);
-	std::strftime(dateTime, 32, "%Y%m%d_%H%M%S", std::localtime(&time));
+	std::strftime(dateTime, 32, "%Y%m%d_%H%M%S", &now);
 
 	commandCount = 0;
 
@@ -340,7 +337,7 @@ VOID __cdecl EndMacro_D(PSPAWNINFO pChar, PCHAR szLine)
 
 	g_pProfile->End();
 
-	auto profileDirectoryPath = std::string(gszMacroPath) + "\\profiles\\";
+	auto profileDirectoryPath = std::string(gPathMacros) + "\\profiles\\";
 	if (!std::filesystem::exists(profileDirectoryPath))
 		std::filesystem::create_directory(profileDirectoryPath);
 
@@ -367,7 +364,7 @@ VOID __cdecl DoEvents_D(PSPAWNINFO pChar, PCHAR szLine)
 			LogError("Something went wrong in bind");
 			return;
 		}
-        
+
 		// My compile of MQ2Main gives different struct layouts for MACROBLOCK to whatever VV is compiled with so this crashes
 
 		auto line = gMacroBlock->Line.find(gMacroBlock->CurrIndex);
@@ -405,7 +402,7 @@ VOID __cdecl DoEvents_D(PSPAWNINFO pChar, PCHAR szLine)
 	}
 }
 
-BOOL __cdecl DoNextCommand_D(PMACROBLOCK pMacroBlock)
+BOOL __cdecl DoNextCommand_D(MQMacroBlockPtr pMacroBlock)
 {
 	if (DoNextCommand_T(pMacroBlock))
 	{
