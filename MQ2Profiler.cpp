@@ -26,7 +26,7 @@ VOID __cdecl Call_D(PSPAWNINFO pChar, PCHAR szLine);
 VOID __cdecl Return_D(PSPAWNINFO pChar, PCHAR szLine);
 VOID __cdecl EndMacro_D(PSPAWNINFO pChar, PCHAR szLine);
 VOID __cdecl DoEvents_D(PSPAWNINFO pChar, PCHAR szLine);
-BOOL __cdecl DoNextCommand_D(MQMacroBlockPtr pMacroBlock);
+BOOL __cdecl DoNextCommand_D(MQMacroBlockPtr pMacroBlock) noexcept;
 
 DWORD callAddr;
 DWORD returnAddr;
@@ -155,7 +155,7 @@ public:
 
 	void Return(const std::string & returnValue)
 	{
-		if (m_callStack.size() == 0)
+		if (m_callStack.empty())
 		{
 			return;
 		}
@@ -402,7 +402,7 @@ VOID __cdecl DoEvents_D(PSPAWNINFO pChar, PCHAR szLine)
 	}
 }
 
-BOOL __cdecl DoNextCommand_D(MQMacroBlockPtr pMacroBlock)
+BOOL __cdecl DoNextCommand_D(MQMacroBlockPtr pMacroBlock) noexcept
 {
 	if (DoNextCommand_T(pMacroBlock))
 	{
